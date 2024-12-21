@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.user</a> &gt; <span class="el_source">UserMapper.java</span></div><h1>UserMapper.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.user;
+
+
+import com.pmt.project_management.auth.RegistrationRequest;
+import com.pmt.project_management.role.ERole;
+import com.pmt.project_management.role.Role;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.stream.Collectors;
+
+@Service
+<span class="fc" id="L13">public class UserMapper {</span>
+
+    public User toUser(RegistrationRequest request) {
+<span class="fc bfc" id="L16" title="All 2 branches covered.">        if (request == null) {</span>
+<span class="fc" id="L17">            return null;</span>
+        }
+<span class="fc" id="L19">        return User.builder()</span>
+<span class="fc" id="L20">                .id(request.getId())</span>
+<span class="fc" id="L21">                .nom(request.getNom())</span>
+<span class="fc" id="L22">                .prenom(request.getPrenom())</span>
+<span class="fc" id="L23">                .email(request.getEmail())</span>
+<span class="fc" id="L24">                .build();</span>
+    }
+
+    public UserResponse fromUser(User user) {
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        if (user == null) {</span>
+<span class="fc" id="L29">            return null;</span>
+        }
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        String roleName = (user.getRole() != null) ? user.getRole().getNom().name() : &quot;No role&quot;;</span>
+
+<span class="fc" id="L33">        return UserResponse.builder()</span>
+<span class="fc" id="L34">                .id(user.getId())</span>
+<span class="fc" id="L35">                .nom(user.getNom())</span>
+<span class="fc" id="L36">                .prenom(user.getPrenom())</span>
+<span class="fc" id="L37">                .email(user.getEmail())</span>
+<span class="fc" id="L38">                .role(roleName)  // Obtenir le nom unique du rôle</span>
+<span class="fc" id="L39">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

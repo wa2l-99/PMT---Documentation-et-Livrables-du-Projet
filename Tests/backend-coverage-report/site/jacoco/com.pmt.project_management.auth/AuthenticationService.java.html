@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthenticationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.auth</a> &gt; <span class="el_source">AuthenticationService.java</span></div><h1>AuthenticationService.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.auth;
+
+import com.pmt.project_management.exception.AlreadyExistsException;
+import com.pmt.project_management.exception.UserNotFoundException;
+import com.pmt.project_management.role.Role;
+import com.pmt.project_management.user.UserMapper;
+import com.pmt.project_management.role.RoleRepository;
+import com.pmt.project_management.security.JwtService;
+import com.pmt.project_management.user.User;
+import com.pmt.project_management.user.UserRepository;
+import com.pmt.project_management.user.UserResponse;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class AuthenticationService {
+    private final PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+    private final UserMapper mapper;
+
+
+    public Integer register(RegistrationRequest registrationRequest) {
+
+
+<span class="fc" id="L38">        var user = User.builder()</span>
+<span class="fc" id="L39">                .nom(registrationRequest.getNom())</span>
+<span class="fc" id="L40">                .prenom(registrationRequest.getPrenom())</span>
+<span class="fc" id="L41">                .email(registrationRequest.getEmail())</span>
+<span class="fc" id="L42">                .password(passwordEncoder.encode(registrationRequest.getPassword()))</span>
+<span class="fc" id="L43">                .build();</span>
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (userRepository.existsByEmail(user.getEmail())) {</span>
+<span class="fc" id="L46">            throw new AlreadyExistsException(&quot;L'utilisateur avec l'email &quot; + user.getEmail() + &quot; existe déja&quot;);</span>
+        }
+
+<span class="fc" id="L49">        return userRepository.save(user).getId();</span>
+    }
+
+
+    public AuthenticationResponse authenticate(AuthenticationRequest request) {
+<span class="fc" id="L54">        var auth = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));</span>
+
+<span class="fc" id="L56">        var claims = new HashMap&lt;String, Object&gt;();</span>
+<span class="fc" id="L57">        var user = ((User) auth.getPrincipal());</span>
+<span class="fc" id="L58">        claims.put(&quot;fullName&quot;, user.getFullName());</span>
+
+
+<span class="fc" id="L61">        var jwtToken = jwtService.generateToken(claims, (User) auth.getPrincipal());</span>
+<span class="fc" id="L62">        UserResponse userResponse = mapper.fromUser(user);</span>
+
+
+<span class="fc" id="L65">        return AuthenticationResponse.builder().token(jwtToken).user(userResponse).build();</span>
+    }
+
+    public List&lt;UserResponse&gt; findAllUsers() {
+<span class="fc" id="L69">        return this.userRepository.findAll().stream().map(mapper::fromUser).collect(Collectors.toList());</span>
+    }
+
+    public UserResponse findById(Integer id) {
+<span class="pc" id="L73">        return this.userRepository.findById(id).map(mapper::fromUser).orElseThrow(() -&gt; new UserNotFoundException(String.format(&quot;No user found with the provided ID: %s&quot;, id)));</span>
+    }
+
+    public void deleteUser(Integer id) {
+<span class="fc" id="L77">        User existingUser = userRepository.findById(id)</span>
+<span class="fc" id="L78">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'Id: &quot; + id));</span>
+<span class="fc" id="L79">        userRepository.delete(existingUser);</span>
+<span class="fc" id="L80">    }</span>
+
+    // Méthode pour récupérer tous les emails des utilisateurs
+    public List&lt;String&gt; getAllUserEmails() {
+<span class="nc" id="L84">        return userRepository.findAll()</span>
+<span class="nc" id="L85">                .stream()</span>
+<span class="nc" id="L86">                .map(User::getEmail)</span>
+<span class="nc" id="L87">                .collect(Collectors.toList());</span>
+    }
+
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

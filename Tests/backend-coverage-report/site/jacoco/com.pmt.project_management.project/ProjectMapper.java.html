@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.project</a> &gt; <span class="el_source">ProjectMapper.java</span></div><h1>ProjectMapper.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.project;
+
+import com.pmt.project_management.task.TaskResponse;
+import com.pmt.project_management.user.User;
+import org.springframework.stereotype.Service;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+<span class="fc" id="L12">public class ProjectMapper {</span>
+
+    public Project toProject(ProjectRequest request) {
+<span class="fc bfc" id="L15" title="All 2 branches covered.">        if (request == null) {</span>
+<span class="fc" id="L16">            return null;</span>
+        }
+<span class="fc" id="L18">        Project project = Project.builder().id(request.getId()).name(request.getName()).description(request.getDescription()).startDate(request.getStartDate()).build();</span>
+
+        // Initialiser explicitement la collection members
+<span class="pc bpc" id="L21" title="1 of 2 branches missed.">        if (project.getMembers() == null) {</span>
+<span class="fc" id="L22">            project.setMembers(new HashSet&lt;&gt;());</span>
+        }
+
+<span class="fc" id="L25">        return project;</span>
+    }
+
+    public ProjectResponse toProjectResponse(Project project) {
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (project == null) {</span>
+<span class="fc" id="L30">            return null;</span>
+        }
+
+        // Mapper les membres du projet avec leur nom et rôle
+<span class="fc" id="L34">        Set&lt;ProjectMemberResponse&gt; members = project.getMembers().stream().map(member -&gt; {</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">            String roleName = (member.getRole() != null) ? member.getRole().getNom().name() : &quot;No role&quot;; // Default if no role</span>
+
+<span class="fc" id="L37">            return ProjectMemberResponse.builder().nom(member.getNom())</span>
+<span class="fc" id="L38">                    .prenom(member.getPrenom())</span>
+<span class="fc" id="L39">                    .email(member.getEmail())</span>
+<span class="fc" id="L40">                    .role(roleName)// Rôle du membre</span>
+<span class="fc" id="L41">                    .build();</span>
+<span class="fc" id="L42">        }).collect(Collectors.toSet());</span>
+
+        // Map tasks with minimal assignedTo information
+<span class="fc" id="L45">        Set&lt;TaskResponse&gt; tasks = project.getTasks().stream().map(task -&gt; {</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            boolean isAssigned = task.getAssignedTo() != null;</span>
+
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">            String assignedTo = (isAssigned)</span>
+<span class="fc" id="L49">                    ? task.getAssignedTo().getFullName() + &quot; (&quot; + task.getAssignedTo().getEmail() + &quot;)&quot;</span>
+<span class="pc" id="L50">                    : &quot;tâche non affectée&quot;;</span>
+
+<span class="fc" id="L52">            return TaskResponse.builder()</span>
+<span class="fc" id="L53">                    .id(task.getId())</span>
+<span class="fc" id="L54">                    .name(task.getName())</span>
+<span class="fc" id="L55">                    .description(task.getDescription())</span>
+<span class="fc" id="L56">                    .dueDate(task.getDueDate())</span>
+<span class="fc" id="L57">                    .priority(task.getPriority())</span>
+<span class="fc" id="L58">                    .status(task.getStatus())</span>
+<span class="fc" id="L59">                    .assignedTo(assignedTo)</span>
+<span class="fc" id="L60">                    .projectName(task.getProject().getName())</span>
+<span class="fc" id="L61">                    .isAssigned(isAssigned)</span>
+<span class="fc" id="L62">                    .build();</span>
+<span class="fc" id="L63">        }).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L65">        return ProjectResponse.builder().id(project.getId()).name(project.getName()).description(project.getDescription()).startDate(project.getStartDate()).owner(project.getOwner().getNom()).members(members).tasks(tasks).build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

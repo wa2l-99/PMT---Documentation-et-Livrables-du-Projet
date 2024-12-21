@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TaskService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.task</a> &gt; <span class="el_source">TaskService.java</span></div><h1>TaskService.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.task;
+
+import com.pmt.project_management.email.EmailService;
+import com.pmt.project_management.history.TaskModifiedHistory;
+import com.pmt.project_management.history.TaskModifiedHistoryRepository;
+import com.pmt.project_management.project.Project;
+import com.pmt.project_management.project.ProjectRepository;
+import com.pmt.project_management.user.User;
+import com.pmt.project_management.user.UserRepository;
+import jakarta.mail.MessagingException;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
+
+@Service
+@RequiredArgsConstructor
+public class TaskService {
+
+    private final TaskRepository taskRepository;
+    private final ProjectRepository projectRepository;
+    private final TaskMapper taskMapper;
+    private final UserRepository userRepository;
+    private final TaskModifiedHistoryRepository taskModifiedHistoryRepository;
+
+    private final EmailService emailService;
+
+    public TaskResponse createTask(Integer projectId, TaskRequest request, Authentication connectedUser) {
+<span class="fc" id="L39">        User user = (User) connectedUser.getPrincipal();</span>
+
+        // Récupérer le projet par ID
+<span class="fc" id="L42">        Project project = projectRepository.findById(projectId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+        // Log pour voir si l'utilisateur est bien dans les membres du projet
+<span class="fc" id="L45">        System.out.println(&quot;Membres du projet : &quot; + project.getMembers());</span>
+<span class="fc" id="L46">        System.out.println(&quot;Utilisateur connecté : &quot; + user.getFullName());</span>
+
+        // Vérifier si l'utilisateur est membre ou administrateur du projet
+<span class="fc bfc" id="L49" title="All 4 branches covered.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="fc" id="L50">            throw new IllegalStateException(&quot;Vous devez être membre ou administrateur pour créer une tâche dans ce projet.&quot;);</span>
+        }
+
+        // Mapper la requête en une entité Task
+<span class="fc" id="L54">        Task task = taskMapper.toTaskRequest(request, project);</span>
+
+        // Sauvegarder la tâche dans la base de données
+<span class="fc" id="L57">        taskRepository.save(task);</span>
+
+        // Retourner la tâche sous forme de TaskResponse
+<span class="fc" id="L60">        return taskMapper.toTaskResponse(task);</span>
+    }
+
+
+    public TaskResponse updateTask(Integer taskId, TaskRequest taskRequest, Authentication connectedUser) {
+<span class="fc" id="L65">        User user = (User) connectedUser.getPrincipal();</span>
+
+        // Récupérer la tâche existante
+<span class="pc" id="L68">        Task existingTask = taskRepository.findById(taskId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Tâche non trouvée avec l'ID : &quot; + taskId));</span>
+
+        // Copier l'ancienne version de la tâche pour comparaison
+<span class="fc" id="L71">        Task oldTask = new Task();</span>
+<span class="fc" id="L72">        BeanUtils.copyProperties(existingTask, oldTask);</span>
+
+        // Appliquer les modifications à la tâche
+<span class="fc" id="L75">        existingTask.setName(taskRequest.getName());</span>
+<span class="fc" id="L76">        existingTask.setDescription(taskRequest.getDescription());</span>
+<span class="fc" id="L77">        existingTask.setDueDate(taskRequest.getDueDate());</span>
+<span class="fc" id="L78">        existingTask.setPriority(taskRequest.getPriority());</span>
+<span class="fc" id="L79">        existingTask.setStatus(taskRequest.getStatus());</span>
+
+        // Enregistrer la tâche mise à jour
+<span class="fc" id="L82">        taskRepository.save(existingTask);</span>
+
+        // Utiliser le mapper pour générer l'historique avec une description dynamique
+<span class="fc" id="L85">        TaskHistoryResponse historyResponse = taskMapper.toTaskHistoryResponse(oldTask, existingTask);</span>
+
+        // Créer une entrée d'historique et la sauvegarder
+<span class="fc" id="L88">        TaskModifiedHistory history = new TaskModifiedHistory();</span>
+<span class="fc" id="L89">        history.setTask(existingTask);</span>
+<span class="fc" id="L90">        history.setUser(user);</span>
+<span class="fc" id="L91">        history.setDescription(historyResponse.getModificationDescription());</span>
+
+<span class="fc" id="L93">        taskModifiedHistoryRepository.save(history);</span>
+
+<span class="fc" id="L95">        return taskMapper.toTaskResponse(existingTask);</span>
+    }
+
+    public TaskResponse getTaskById(Integer taskId, Authentication connectedUser) {
+<span class="fc" id="L99">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="pc" id="L101">        Task task = taskRepository.findById(taskId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Tâche non trouvée avec l'ID : &quot; + taskId));</span>
+
+<span class="fc" id="L103">        Project project = task.getProject();</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L105">            throw new IllegalStateException(&quot;Vous devez être membre, administrateur ou observateur pour voir cette tâche.&quot;);</span>
+        }
+
+<span class="fc" id="L108">        return taskMapper.toTaskResponse(task);</span>
+    }
+
+
+    public void deleteTask(Integer taskId, Authentication connectedUser) {
+<span class="fc" id="L113">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="pc" id="L115">        Task task = taskRepository.findById(taskId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Tâche non trouvée avec l'ID : &quot; + taskId));</span>
+
+<span class="fc" id="L117">        Project project = task.getProject();</span>
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L119">            throw new IllegalStateException(&quot;Vous devez être membre ou administrateur pour supprimer cette tâche.&quot;);</span>
+        }
+<span class="fc" id="L121">        taskRepository.delete(task);</span>
+<span class="fc" id="L122">    }</span>
+
+
+    public List&lt;TaskResponse&gt; getTasksByStatus(Integer projectId, EStatus status, Authentication connectedUser) {
+<span class="fc" id="L126">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="pc" id="L128">        Project project = projectRepository.findById(projectId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+<span class="pc bpc" id="L130" title="3 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L131">            throw new IllegalStateException(&quot;Vous devez être membre, administrateur ou observateur pour voir les tâches.&quot;);</span>
+        }
+
+<span class="fc" id="L134">        List&lt;Task&gt; tasks = taskRepository.findByProjectAndStatus(project, status);</span>
+
+<span class="fc" id="L136">        return tasks.stream().map(taskMapper::toTaskResponse).collect(Collectors.toList());</span>
+    }
+
+    public List&lt;TaskResponse&gt; getTasksByPriority(Integer projectId, EPriority priority, Authentication connectedUser) {
+<span class="fc" id="L140">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="pc" id="L142">        Project project = projectRepository.findById(projectId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+<span class="pc bpc" id="L144" title="3 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L145">            throw new IllegalStateException(&quot;Vous devez être membre, administrateur ou observateur pour voir les tâches.&quot;);</span>
+        }
+
+<span class="fc" id="L148">        List&lt;Task&gt; tasks = taskRepository.findByProjectAndPriority(project, priority);</span>
+
+<span class="fc" id="L150">        return tasks.stream().map(taskMapper::toTaskResponse).collect(Collectors.toList());</span>
+    }
+
+
+    public List&lt;TaskResponse&gt; getAllTasksByProject(Integer projectId, Authentication authentication) {
+
+<span class="nc" id="L156">        User user = (User) authentication.getPrincipal();</span>
+
+<span class="nc" id="L158">        Project project = projectRepository.findById(projectId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+<span class="nc bnc" id="L160" title="All 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L161">            throw new IllegalStateException(&quot;Vous devez être membre, administrateur ou observateur pour voir les tâches.&quot;);</span>
+        }
+
+<span class="nc" id="L164">        List&lt;Task&gt; tasks = taskRepository.findByProject(project);</span>
+
+<span class="nc" id="L166">        List&lt;TaskResponse&gt; taskResponses = tasks.stream().map(taskMapper::toTaskResponse).toList();</span>
+
+<span class="nc" id="L168">        return taskResponses;</span>
+    }
+
+    // Méthode pour récupérer l'historique des tâches modifiées pour les projets de l'utilisateur connecté
+// Méthode pour récupérer l'historique des tâches modifiées pour les projets de l'utilisateur connecté avec pagination
+    public List&lt;TaskHistoryResponse&gt; getTaskModificationsForUserProjects(Authentication connectedUser, int page, int size) {
+<span class="fc" id="L174">        User user = (User) connectedUser.getPrincipal();</span>
+
+        // Définir les paramètres de pagination
+<span class="fc" id="L177">        Pageable pageable = PageRequest.of(page, size, Sort.by(&quot;createdDate&quot;).descending());</span>
+
+        // Récupérer les projets auxquels l'utilisateur est membre, administrateur ou observateur, avec pagination
+<span class="fc" id="L180">        Page&lt;Project&gt; userProjectsPage = projectRepository.findByMembersContaining(user, pageable);</span>
+
+        // Si aucun projet n'est trouvé, retourner une liste vide
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (userProjectsPage.isEmpty()) {</span>
+<span class="fc" id="L184">            return Collections.emptyList();</span>
+        }
+
+        // Récupérer toutes les tâches des projets paginés
+<span class="nc" id="L188">        List&lt;Task&gt; tasks = userProjectsPage.getContent().stream().flatMap(project -&gt; project.getTasks().stream()).collect(Collectors.toList());</span>
+
+        // Si aucune tâche n'est associée aux projets de l'utilisateur, retourner une liste vide
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        if (tasks.isEmpty()) {</span>
+<span class="nc" id="L192">            return Collections.emptyList();</span>
+        }
+
+        // Récupérer l'historique des modifications pour ces tâches
+<span class="nc" id="L196">        List&lt;TaskModifiedHistory&gt; histories = taskModifiedHistoryRepository.findByTaskIn(tasks);</span>
+
+        // Si aucun historique n'est trouvé, retourner une liste vide
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (histories.isEmpty()) {</span>
+<span class="nc" id="L200">            return Collections.emptyList();</span>
+        }
+
+        // Utiliser le mapper pour transformer les historiques en TaskHistoryResponse
+<span class="nc" id="L204">        return histories.stream().map(this::mapToTaskHistoryResponse).collect(Collectors.toList());</span>
+    }
+
+    // Mapper pour transformer l'entité TaskModifiedHistory en TaskHistoryResponse
+    private TaskHistoryResponse mapToTaskHistoryResponse(TaskModifiedHistory history) {
+<span class="nc" id="L209">        return TaskHistoryResponse.builder().taskId(history.getTask().getId()).taskName(history.getTask().getName()).projectName(history.getTask().getProject().getName()).lastModifiedById(history.getUser().getId()).lastModifiedByName(history.getUser().getFullName()).lastModifiedDate(history.getCreatedDate()).modificationDescription(history.getDescription()).build();</span>
+    }
+
+
+    public TaskResponse assignTaskToMember(Integer taskId, Integer memberId, Authentication connectedUser) throws MessagingException {
+<span class="fc" id="L214">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="pc" id="L216">        Task task = taskRepository.findById(taskId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Tâche non trouvée avec l'ID : &quot; + taskId));</span>
+
+        // Récupérer le projet auquel appartient la tâche
+<span class="fc" id="L219">        Project project = task.getProject();</span>
+
+        // Vérifier si l'utilisateur connecté est membre ou propriétaire du projet
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="nc" id="L223">            throw new IllegalStateException(&quot;Vous devez être membre ou administrateur du projet pour assigner une tâche.&quot;);</span>
+        }
+
+        // Rechercher le membre à qui la tâche va être assignée par ID
+<span class="pc" id="L227">        User member = userRepository.findById(memberId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'ID : &quot; + memberId));</span>
+
+        // Vérifier que le membre fait partie du projet
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (!project.getMembers().contains(member)) {</span>
+<span class="fc" id="L231">            throw new IllegalStateException(&quot;L'utilisateur n'est pas membre de ce projet.&quot;);</span>
+        }
+
+        // Assigner la tâche au membre
+<span class="fc" id="L235">        task.setAssignedTo(member);</span>
+<span class="fc" id="L236">        taskRepository.save(task);</span>
+
+        // Envoyer un e-mail de notification au membre
+<span class="fc" id="L239">        emailService.sendTaskAssignmentEmail(member.getEmail(), member.getFullName(), task.getName(), project.getName(), &quot;Affectation de tâche&quot;);</span>
+
+        // Retourner la réponse de la tâche mise à jour
+<span class="fc" id="L242">        return taskMapper.toTaskResponse(task);</span>
+    }
+
+    public List&lt;TaskResponse&gt; getAllTasks(Authentication authentication) {
+<span class="nc" id="L246">        User user = (User) authentication.getPrincipal();</span>
+
+        // Vérifier si l'utilisateur est un administrateur ou un membre
+<span class="nc bnc" id="L249" title="All 6 branches missed.">        if (!user.getRole().getNom().name().equals(&quot;ADMIN&quot;) &amp;&amp; !user.getRole().getNom().name().equals(&quot;MEMBER&quot;) &amp;&amp; !user.getRole().getNom().name().equals(&quot;OBSERVER&quot;)) {</span>
+<span class="nc" id="L250">            throw new IllegalStateException(&quot;Vous devez être membre, administrateur ou observateur pour voir les tâches.&quot;);</span>
+        }
+
+        // Récupérer toutes les tâches
+<span class="nc" id="L254">        List&lt;Task&gt; tasks = taskRepository.findAll();</span>
+
+        // Mapper les tâches vers des réponses TaskResponse
+<span class="nc" id="L257">        return tasks.stream().map(taskMapper::toTaskResponse).toList();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

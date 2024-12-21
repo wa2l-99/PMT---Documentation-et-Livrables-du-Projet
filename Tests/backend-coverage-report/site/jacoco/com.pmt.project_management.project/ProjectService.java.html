@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.project</a> &gt; <span class="el_source">ProjectService.java</span></div><h1>ProjectService.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.project;
+
+import com.pmt.project_management.common.PageResponse;
+import com.pmt.project_management.exception.AlreadyExistsException;
+import com.pmt.project_management.role.ERole;
+import com.pmt.project_management.role.Role;
+import com.pmt.project_management.role.RoleRepository;
+import com.pmt.project_management.user.User;
+import com.pmt.project_management.user.UserMapper;
+import com.pmt.project_management.user.UserRepository;
+import com.pmt.project_management.user.UserResponse;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static com.pmt.project_management.project.ProjectSpecification.withOwnerId;
+
+@Service
+@RequiredArgsConstructor
+public class ProjectService {
+
+    private final ProjectMapper projectMapper;
+    private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
+    private final UserMapper userMapper;
+
+    public Integer save(ProjectRequest request, Authentication connectedUser) {
+        // Récupérer l'utilisateur connecté
+<span class="fc" id="L38">        User user = (User) connectedUser.getPrincipal();</span>
+
+<span class="fc" id="L40">        Project project = projectMapper.toProject(request);</span>
+
+        // Vérifier si un projet avec le même nom existe déjà
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (projectRepository.existsByName(project.getName())) {</span>
+<span class="fc" id="L44">            throw new AlreadyExistsException(&quot;Le projet avec le nom &quot; + project.getName() + &quot; existe déjà&quot;);</span>
+        }
+
+        // Vérifier si l'utilisateur n'a aucun rôle
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (user.getRole() == null) {</span>
+            // Récupérer le rôle ADMIN depuis la base de données
+<span class="fc" id="L50">            Role adminRole = roleRepository.findByNom(ERole.ADMIN)</span>
+<span class="pc" id="L51">                    .orElseThrow(() -&gt; new IllegalStateException(&quot;Error: Role ADMIN is not found.&quot;));</span>
+
+            // Assigner le rôle ADMIN à l'utilisateur
+<span class="fc" id="L54">            user.setRole(adminRole);</span>
+<span class="fc" id="L55">            userRepository.save(user);  // Persister la modification du rôle de l'utilisateur</span>
+<span class="fc" id="L56">        }</span>
+        // Si l'utilisateur a un rôle autre que ADMIN, il ne peut pas créer un projet
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        else if (!user.getRole().getNom().equals(ERole.ADMIN)) {</span>
+<span class="nc" id="L59">            throw new IllegalStateException(&quot;Vous ne possédez pas les autorisations nécessaires pour créer un projet.&quot;);</span>
+        }
+
+        // Définir l'utilisateur comme propriétaire du projet
+<span class="fc" id="L63">        project.setOwner(user);</span>
+
+        // Ajouter l'utilisateur créateur comme membre du projet
+<span class="fc" id="L66">        project.getMembers().add(user);</span>
+
+<span class="fc" id="L68">        projectRepository.save(project);</span>
+
+<span class="fc" id="L70">        return project.getId();</span>
+    }
+
+
+    public ProjectResponse findById(Integer projectId) {
+<span class="fc" id="L75">        return projectRepository.findById(projectId).map(projectMapper::toProjectResponse).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Aucun projet trouvé avec l'id: &quot; + projectId));</span>
+    }
+
+    public PageResponse findAllProjects(int page, int size) {
+
+<span class="fc" id="L80">        Pageable pageable = PageRequest.of(page, size, Sort.by(&quot;createdDate&quot;).descending());</span>
+
+<span class="fc" id="L82">        Page&lt;Project&gt; projects = projectRepository.findAll(pageable);</span>
+
+<span class="fc" id="L84">        List&lt;ProjectResponse&gt; projectResponses = projects.stream().map(projectMapper::toProjectResponse).toList();</span>
+
+<span class="fc" id="L86">        return new PageResponse&lt;&gt;(projectResponses, projects.getNumber(), projects.getSize(), projects.getTotalElements(), projects.getTotalPages(), projects.isFirst(), projects.isLast());</span>
+
+    }
+
+    public PageResponse&lt;ProjectResponse&gt; findAllProjectsByOwner(int page, int size, Authentication connectedUser) {
+
+<span class="fc" id="L92">        User user = ((User) connectedUser.getPrincipal());</span>
+<span class="fc" id="L93">        Pageable pageable = PageRequest.of(page, size, Sort.by(&quot;createdDate&quot;).descending());</span>
+
+<span class="nc" id="L95">        Page&lt;Project&gt; projects = projectRepository.findAll(withOwnerId(user.getId()), pageable);</span>
+
+<span class="nc" id="L97">        List&lt;ProjectResponse&gt; projectResponses = projects.stream().map(projectMapper::toProjectResponse).toList();</span>
+
+<span class="nc" id="L99">        return new PageResponse&lt;&gt;(projectResponses, projects.getNumber(), projects.getSize(), projects.getTotalElements(), projects.getTotalPages(), projects.isFirst(), projects.isLast());</span>
+    }
+
+    public void deleteProject(Integer projectId) {
+<span class="pc" id="L103">        Project existingProject = projectRepository.findById(projectId).orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+<span class="fc" id="L104">        projectRepository.delete(existingProject);</span>
+<span class="fc" id="L105">    }</span>
+
+    public ProjectResponse inviteMemberToProject(Integer projectId, InviteMemberRequest request, Authentication connectedUser) {
+        // Récupérer l'utilisateur connecté (administrateur)
+<span class="fc" id="L109">        User adminUser = (User) connectedUser.getPrincipal();</span>
+
+        // Récupérer le projet par ID
+<span class="fc" id="L112">        Project project = projectRepository.findById(projectId)</span>
+<span class="pc" id="L113">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+        // Vérifier si l'utilisateur connecté est l'administrateur (propriétaire du projet)
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (!project.getOwner().getId().equals(adminUser.getId())) {</span>
+<span class="fc" id="L117">            throw new IllegalStateException(&quot;Vous devez être administrateur du projet pour inviter des membres.&quot;);</span>
+        }
+
+        // Rechercher l'utilisateur à inviter par e-mail
+<span class="fc" id="L121">        User invitedUser = userRepository.findByEmail(request.getEmail())</span>
+<span class="fc" id="L122">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'email : &quot; + request.getEmail()));</span>
+
+        // Vérifier si l'utilisateur est déjà membre du projet
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (project.getMembers().contains(invitedUser)) {</span>
+<span class="fc" id="L126">            throw new IllegalStateException(&quot;L'utilisateur est déjà membre de ce projet.&quot;);</span>
+        }
+
+        // Ajouter l'utilisateur à la liste des membres du projet sans rôle
+<span class="fc" id="L130">        project.getMembers().add(invitedUser);</span>
+
+        // Sauvegarder les modifications dans la base de données
+<span class="fc" id="L133">        projectRepository.save(project);   // Sauvegarder le projet avec le nouveau membre</span>
+
+<span class="fc" id="L135">        return projectMapper.toProjectResponse(project);</span>
+    }
+
+
+    public String assignRoleToMember(Integer projectId, AssignRoleRequest request, Authentication connectedUser) {
+<span class="fc" id="L140">        User adminUser = (User) connectedUser.getPrincipal();</span>
+
+<span class="fc" id="L142">        Project project = projectRepository.findById(projectId)</span>
+<span class="pc" id="L143">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        if (!project.getOwner().getId().equals(adminUser.getId())) {</span>
+<span class="fc" id="L146">            throw new IllegalStateException(&quot;Vous devez être administrateur du projet pour attribuer des rôles.&quot;);</span>
+        }
+
+<span class="fc" id="L149">        User member = userRepository.findByEmail(request.getEmail())</span>
+<span class="pc" id="L150">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'email : &quot; + request.getEmail()));</span>
+
+        // Vérifier si l'utilisateur est membre du projet
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        if (!project.getMembers().contains(member)) {</span>
+<span class="fc" id="L154">            throw new IllegalStateException(&quot;L'utilisateur n'est pas membre de ce projet.&quot;);</span>
+        }
+
+        // Récupérer le rôle à attribuer depuis la base de données
+<span class="fc" id="L158">        Role role = roleRepository.findByNom(ERole.valueOf(request.getRole().toUpperCase()))</span>
+<span class="pc" id="L159">                .orElseThrow(() -&gt; new IllegalStateException(&quot;Rôle non trouvé : &quot; + request.getRole()));</span>
+
+        // Ajouter le rôle à l'utilisateur
+<span class="fc" id="L162">        member.setRole(role);</span>
+
+<span class="fc" id="L164">        userRepository.save(member);  // Sauvegarder l'utilisateur avec son nouveau rôle</span>
+<span class="fc" id="L165">        return role.getNom().name();</span>
+    }
+
+
+    public String updateMemberRole(Integer projectId, AssignRoleRequest request, Authentication connectedUser) {
+<span class="nc" id="L170">        User adminUser = (User) connectedUser.getPrincipal();</span>
+<span class="nc" id="L171">        Project project = projectRepository.findById(projectId)</span>
+<span class="nc" id="L172">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if (!project.getOwner().getId().equals(adminUser.getId())) {</span>
+<span class="nc" id="L175">            throw new IllegalStateException(&quot;Vous devez être administrateur du projet pour modifier les rôles.&quot;);</span>
+        }
+
+<span class="nc" id="L178">        User member = userRepository.findByEmail(request.getEmail())</span>
+<span class="nc" id="L179">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'email : &quot; + request.getEmail()));</span>
+
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (!project.getMembers().contains(member)) {</span>
+<span class="nc" id="L182">            throw new IllegalStateException(&quot;L'utilisateur n'est pas membre de ce projet.&quot;);</span>
+        }
+
+<span class="nc" id="L185">        Role newRole = roleRepository.findByNom(ERole.valueOf(request.getRole().toUpperCase()))</span>
+<span class="nc" id="L186">                .orElseThrow(() -&gt; new IllegalStateException(&quot;Rôle non trouvé : &quot; + request.getRole()));</span>
+
+        // Ajouter le nouveau rôle
+<span class="nc" id="L189">        member.setRole(newRole);</span>
+
+<span class="nc" id="L191">        userRepository.save(member);</span>
+<span class="nc" id="L192">        return newRole.getNom().name();</span>
+    }
+
+
+    public UserResponse getMemberDetails(Integer projectId, String email) {
+
+        // Récupérer le projet par ID
+<span class="nc" id="L199">        Project project = projectRepository.findById(projectId)</span>
+<span class="nc" id="L200">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+        // Rechercher le membre par e-mail
+<span class="nc" id="L203">        User member = userRepository.findByEmail(email)</span>
+<span class="nc" id="L204">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Utilisateur non trouvé avec l'email : &quot; + email));</span>
+
+        // Vérifier si le membre appartient au projet
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (!project.getMembers().contains(member)) {</span>
+<span class="nc" id="L208">            throw new IllegalStateException(&quot;L'utilisateur n'est pas membre de ce projet.&quot;);</span>
+        }
+
+<span class="nc" id="L211">        return userMapper.fromUser(member);</span>
+    }
+
+    // Récupérer tous les projets où l'utilisateur est membre
+    public PageResponse&lt;ProjectResponse&gt; getProjectsForUser(int page, int size, User user) {
+<span class="fc" id="L216">        Pageable pageable = PageRequest.of(page, size, Sort.by(&quot;createdDate&quot;).descending());</span>
+<span class="fc" id="L217">        Page&lt;Project&gt; projects = projectRepository.findByMembersContaining(user, pageable);</span>
+
+<span class="fc" id="L219">        List&lt;ProjectResponse&gt; projectResponse = projects.stream()</span>
+<span class="fc" id="L220">                .map(projectMapper::toProjectResponse)</span>
+<span class="fc" id="L221">                .collect(Collectors.toList());</span>
+
+<span class="fc" id="L223">        return new PageResponse&lt;&gt;(</span>
+                projectResponse,
+<span class="fc" id="L225">                projects.getNumber(),</span>
+<span class="fc" id="L226">                projects.getSize(),</span>
+<span class="fc" id="L227">                projects.getTotalElements(),</span>
+<span class="fc" id="L228">                projects.getTotalPages(),</span>
+<span class="fc" id="L229">                projects.isFirst(),</span>
+<span class="fc" id="L230">                projects.isLast()</span>
+        );
+
+    }
+
+
+    // Récupérer les membres d'un projet
+    public List&lt;UserResponse&gt; getProjectMembers(Integer projectId, Authentication connectedUser) {
+<span class="fc" id="L238">        User user = (User) connectedUser.getPrincipal();</span>
+
+        // Récupérer le projet
+<span class="fc" id="L241">        Project project = projectRepository.findById(projectId)</span>
+<span class="pc" id="L242">                .orElseThrow(() -&gt; new EntityNotFoundException(&quot;Projet non trouvé avec l'ID : &quot; + projectId));</span>
+
+        // Vérifier si l'utilisateur est membre ou administrateur du projet
+<span class="pc bpc" id="L245" title="1 of 4 branches missed.">        if (!project.getMembers().contains(user) &amp;&amp; !project.getOwner().getId().equals(user.getId())) {</span>
+<span class="fc" id="L246">            throw new IllegalStateException(&quot;Vous devez être membre ou administrateur pour voir les membres.&quot;);</span>
+        }
+
+<span class="fc" id="L249">        return project.getMembers().stream()</span>
+<span class="fc" id="L250">                .map(userMapper::fromUser)</span>
+<span class="fc" id="L251">                .collect(Collectors.toList());</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

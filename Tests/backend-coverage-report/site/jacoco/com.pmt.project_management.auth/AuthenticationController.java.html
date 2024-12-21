@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthenticationController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.auth</a> &gt; <span class="el_source">AuthenticationController.java</span></div><h1>AuthenticationController.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.auth;
+
+import com.pmt.project_management.user.UserResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.mail.MessagingException;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/api/auth&quot;)
+@RequiredArgsConstructor
+@Tag(name = &quot;Authentication&quot;)
+public class AuthenticationController {
+
+    private final AuthenticationService service;
+
+    @PostMapping(&quot;/register&quot;)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ResponseEntity&lt;Integer&gt; register(@RequestBody @Valid RegistrationRequest request) {
+<span class="fc" id="L25">        return ResponseEntity.ok(service.register(request));</span>
+    }
+
+    @PostMapping(&quot;/authenticate&quot;)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ResponseEntity&lt;AuthenticationResponse&gt; authenticate(@RequestBody @Valid AuthenticationRequest authenticationRequest) {
+<span class="fc" id="L31">        return ResponseEntity.ok(service.authenticate(authenticationRequest));</span>
+
+    }
+
+    @GetMapping()
+    public ResponseEntity&lt;List&lt;UserResponse&gt;&gt; findAll() {
+<span class="fc" id="L37">        return ResponseEntity.ok(service.findAllUsers());</span>
+    }
+
+
+    @GetMapping(&quot;/{user-id}&quot;)
+    public ResponseEntity&lt;UserResponse&gt; findById(@PathVariable(&quot;user-id&quot;) Integer userId) {
+<span class="fc" id="L43">        return ResponseEntity.ok(service.findById(userId));</span>
+    }
+
+    @DeleteMapping(&quot;/{user-id}&quot;)
+    public ResponseEntity&lt;Void&gt; delete(@PathVariable(&quot;user-id&quot;) Integer userId) {
+<span class="fc" id="L48">        service.deleteUser(userId);</span>
+<span class="fc" id="L49">        return ResponseEntity.accepted().build();</span>
+    }
+
+    @GetMapping(&quot;/emails&quot;)
+    public ResponseEntity&lt;List&lt;String&gt;&gt; getAllUserEmails() {
+<span class="fc" id="L54">        List&lt;String&gt; emails = service.getAllUserEmails();</span>
+<span class="fc" id="L55">        return ResponseEntity.ok(emails);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

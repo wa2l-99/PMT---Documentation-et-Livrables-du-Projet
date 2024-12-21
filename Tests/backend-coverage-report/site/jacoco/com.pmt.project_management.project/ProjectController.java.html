@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">project-management-backend</a> &gt; <a href="index.source.html" class="el_package">com.pmt.project_management.project</a> &gt; <span class="el_source">ProjectController.java</span></div><h1>ProjectController.java</h1><pre class="source lang-java linenums">package com.pmt.project_management.project;
+
+import com.pmt.project_management.common.PageResponse;
+import com.pmt.project_management.user.User;
+import com.pmt.project_management.user.UserResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.hibernate.query.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Collections;
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/api/projects&quot;)
+@RequiredArgsConstructor
+@Tag(name = &quot;Project&quot;)
+public class ProjectController {
+
+    private final ProjectService projectService;
+
+    @PostMapping
+    public ResponseEntity&lt;Integer&gt; saveProject(@Valid @RequestBody ProjectRequest request, Authentication connectedUser) {
+<span class="fc" id="L28">        return ResponseEntity.ok(projectService.save(request, connectedUser));</span>
+    }
+
+    @GetMapping(&quot;/{project-id}&quot;)
+    public ResponseEntity&lt;ProjectResponse&gt; findProjectById(@PathVariable(&quot;project-id&quot;) Integer projectId) {
+<span class="fc" id="L33">        return ResponseEntity.ok(projectService.findById(projectId));</span>
+    }
+
+    @GetMapping(&quot;/all-Projects&quot;)
+    public ResponseEntity&lt;PageResponse&lt;ProjectResponse&gt;&gt; findAllProjects(@RequestParam(name = &quot;page&quot;, defaultValue = &quot;0&quot;, required = false) int page, @RequestParam(name = &quot;size&quot;, defaultValue = &quot;10&quot;, required = false) int size) {
+<span class="fc" id="L38">        return ResponseEntity.ok(projectService.findAllProjects(page, size));</span>
+    }
+
+
+    @GetMapping(&quot;/owner&quot;)
+    public ResponseEntity&lt;PageResponse&lt;ProjectResponse&gt;&gt; findAllProjectsByOwner(@RequestParam(name = &quot;page&quot;, defaultValue = &quot;0&quot;, required = false) int page, @RequestParam(name = &quot;size&quot;, defaultValue = &quot;10&quot;, required = false) int size, Authentication connectedUser) {
+<span class="fc" id="L44">        return ResponseEntity.ok(projectService.findAllProjectsByOwner(page, size, connectedUser));</span>
+    }
+
+    @DeleteMapping(&quot;/{project-id}&quot;)
+    public ResponseEntity&lt;String&gt; deleteProject(@PathVariable(&quot;project-id&quot;) Integer projectId) {
+<span class="fc" id="L49">        projectService.deleteProject(projectId);</span>
+<span class="fc" id="L50">        return ResponseEntity.ok(&quot;Le projet a été supprimé avec succès.&quot;);</span>
+    }
+
+    @PostMapping(&quot;/{projectId}/invite&quot;)
+    public ResponseEntity&lt;ProjectResponse&gt; inviteMemberToProject(@PathVariable Integer projectId,
+                                                                 @RequestBody InviteMemberRequest request,
+                                                                 Authentication authentication) {
+
+<span class="fc" id="L58">        return ResponseEntity.ok(projectService.inviteMemberToProject(projectId, request, authentication));</span>
+    }
+
+    @PostMapping(&quot;/{projectId}/assign-role&quot;)
+    @PreAuthorize(&quot;hasAuthority('ADMIN')&quot;)
+    public ResponseEntity&lt;String&gt; assignRoleToMember(@PathVariable Integer projectId,
+                                                     @RequestBody AssignRoleRequest request,
+                                                     Authentication authentication) {
+<span class="fc" id="L66">        String assignedRole = projectService.assignRoleToMember(projectId, request, authentication);</span>
+<span class="fc" id="L67">        return ResponseEntity.ok(&quot;Rôle : &quot; + assignedRole + &quot; attribué avec succès !&quot;);</span>
+    }
+
+    @PutMapping(&quot;/{projectId}/update-role&quot;)
+    public ResponseEntity&lt;String&gt; updateMemberRole(@PathVariable Integer projectId,
+                                                   @RequestBody AssignRoleRequest request,
+                                                   Authentication authentication) {
+<span class="fc" id="L74">        String updatedRole = projectService.updateMemberRole(projectId, request, authentication);</span>
+<span class="fc" id="L75">        return ResponseEntity.ok(&quot;Le rôle a été mis à jour : &quot; + updatedRole);</span>
+    }
+
+
+    @GetMapping(&quot;/{projectId}/member-details&quot;)
+    public ResponseEntity&lt;UserResponse&gt; getMemberDetails(@PathVariable Integer projectId,
+                                                         @RequestParam String email) {
+<span class="fc" id="L82">        UserResponse memberDetails = projectService.getMemberDetails(projectId, email);</span>
+<span class="fc" id="L83">        return ResponseEntity.ok(memberDetails);</span>
+    }
+
+    @GetMapping(&quot;/my-projects&quot;)
+    public ResponseEntity&lt;PageResponse&lt;ProjectResponse&gt;&gt; getMyProjects(Authentication authentication,
+                                                                       @RequestParam(name = &quot;page&quot;, defaultValue = &quot;0&quot;, required = false) int page,
+                                                                       @RequestParam(name = &quot;size&quot;, defaultValue = &quot;10&quot;, required = false) int size) {
+<span class="fc" id="L90">        User connectedUser = (User) authentication.getPrincipal();</span>
+<span class="fc" id="L91">        PageResponse&lt;ProjectResponse&gt; projects = projectService.getProjectsForUser(page, size, connectedUser);</span>
+
+        // Si aucun projet n'est trouvé, renvoyer une liste vide avec un message approprié
+<span class="pc bpc" id="L94" title="1 of 4 branches missed.">        if (projects == null || projects.getContent().isEmpty()) {</span>
+            // Retourner une réponse avec un body vide
+<span class="fc" id="L96">            return ResponseEntity.ok(new PageResponse&lt;&gt;(Collections.emptyList(), 0, size, 0, 0, true, true));</span>
+        }
+
+        // Retourner la liste des projets si elle n'est pas vide
+<span class="fc" id="L100">        return ResponseEntity.ok(projects);</span>
+    }
+
+    // Endpoint pour obtenir la liste des membres d'un projet
+    @GetMapping(&quot;/{projectId}/members&quot;)
+    @PreAuthorize(&quot;hasAuthority('ADMIN') or hasAuthority('MEMBER')&quot;)
+    public ResponseEntity&lt;List&lt;UserResponse&gt;&gt; getProjectMembers(
+            @PathVariable Integer projectId,
+            Authentication authentication) {
+<span class="fc" id="L109">        List&lt;UserResponse&gt; members = projectService.getProjectMembers(projectId, authentication);</span>
+<span class="fc" id="L110">        return ResponseEntity.ok(members);</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>
